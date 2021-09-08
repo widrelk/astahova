@@ -36,3 +36,20 @@
     transform: rotate(360deg);
   }
 }
+
+#Main-Container {
+  display:flex;
+
+}
+
+table {
+  border-collapse: collapse;
+}
+td {
+  border: 1px solid black;
+  min-width: 50px;
+}
+
+p.tableTitle {
+  margin-bottom: 6px;
+}
