@@ -29,11 +29,11 @@ function App() {
       </header>
       <h2>Основы экономики программной инженерии и управление проектами</h2>
       <div style={{display:"flex"}}>
-          <div style={{flex: 1, float: "left", border:"1px solid"}}>
+          <div style={{flex: 1, float: "left", border:"1px solid", minHeight:"300px"}}>
             <button id={"btnLab1"} onClick={ () => setLabContent(<Lab1/>) }>Лабораторная работа 1</button>
             <button id={"btnLab2"} onClick={ () => setLabContent(<Lab2/>) }>Лабораторная работа 2</button>
           </div>
-          <div style={{flex: 5, float: "left"}}>
+          <div style={{flex: 5, float: "left", paddingLeft:"15px"}}>
               {labContent}
           </div>
         </div>
