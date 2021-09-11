@@ -4,6 +4,9 @@ var _ = require("lodash")
 const Lab2 = () => {
     const [givenTableRows, setGivenTableRows] = useState(null)
     const [givenData, setGivenData] = useState(null)
+    
+    const [myLog, setLog] = useState("")
+    const [fullPaths, setFullPaths] = useState([])
 
     useEffect(() => {
         fetch("/Lab2.txt").then((fileRes) => {
@@ -23,18 +26,68 @@ const Lab2 = () => {
                 return(<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>)
             }))
         
-            let from = [], to = [], works = []
+            let from = [], to = [], events = []     // events - события с исходящими работами
             givenData.forEach((row) => {
-                if (!works[row[0]]) {       // Если исходной вершины ещё не было
-                    works[row[0]] = [row]
+                // Сразу удаляем "петельные" работы
+                if (row[0] === row[1]) {
+                    setLog(prevState => prevState + `Ошибка! Дуга ${row[0]}-${row[1]} удалена\n`)
+                    return
+                }
+                // Если исходной вершины ещё не было, инициализируем контейнер и сохраняем исходную точку
+                if (_.findIndex(from, (elem) => { return elem === row[0]}) === -1){
                     from.push(row[0])
+                    events[row[0]] = []
+                }
+
+                events[row[0]].push(row)
+
+                // Смотрим, фиксировали ли уже "пункт назначения"
+                if (_.indexOf(to, row[1])){
                     to.push(row[1])
-                } else {
-                    
-                    debugger
                 }
             })
-            debugger
+
+            // Назодим начальные и конечные точки
+            let starts = _.difference(from, to)
+            let ends = _.difference(to, from)
+            // TODO: сделать обработки
+            if (starts.length !== 1) {
+                setLog(myLog + `Не одно начальное событие.\n`)
+            }
+            if (ends.length !== 1) {
+                setLog(myLog + `Не одно конечное событие.\n`)
+            }
+
+            // Делаем dfs для поиска полных путей
+            let paths = []
+            starts.forEach((start) => {
+                let path = [start]
+                const search = (path, paths) => {
+                    let currentEvent = events[path.slice(-1)]
+                    currentEvent.forEach((work) => {
+                        // Предотвращение циклов
+                        if (_.indexOf(path, work[1]) !== -1) {
+                            setLog(myLog + `Найден цикл ${path} -> ${work[1]}. Пропускаем вершину. Рекомендуем удалить работу ${work}\n`)
+                            return
+                        }
+                        path.push(work[1])              // Добавляем в путь следующую точку из текушего события
+                        if (!events[work[1]]) {         // Если эта точка без события - полный путь найден
+                            paths.push(JSON.parse(JSON.stringify(path)))    // Сохраняем найденный путь
+                        } else {                        // Если событие есть - делаем шаг рекурсии
+                            search(path, paths)
+                        }
+                        path.pop()
+                    })
+                }
+                let currPaths = []
+                search(path, currPaths)
+                paths = paths.concat(currPaths)
+            })
+            let fullPathsString = ""
+            paths.forEach((path, index) => {
+                fullPathsString += JSON.stringify(path).replaceAll(",", "->").replace("[", `${index + 1})`).replace("]", "<br />")
+            })
+            setFullPaths(fullPathsString)
         }
     }, [givenData])
 
@@ -74,6 +127,16 @@ const Lab2 = () => {
                         <td><b>T<sub>AB</sub></b>: продолжительность соответствующей работы, связывающей события с шифрами А и В (дни)</td>
                     </tr>
                 </table>
+            </div>
+        </div>
+        <div style={{display:"flex", maxHeight:"250px"}}>
+            <div style={{flex:"1"}}>
+                <p>Лог операций:</p>
+                <p>{myLog}</p>
+            </div>
+            <div style={{flex:"1", overflow:"scroll"}}>
+                <p>Список полных путей:</p>
+                <div>{fullPaths}</div>
             </div>
         </div>
         <div style={{minHeight:"100px"}}></div>
