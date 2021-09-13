@@ -53,16 +53,18 @@ const Lab2 = () => {
                 }
             })
 
-            // Назодим начальные и конечные точки
+            // Находим начальные и конечные точки
             let starts = _.difference(from, to)
             let ends = _.difference(to, from)
             if (starts.length !== 1) {
                 logupdate.push(`Не одно начальное событие. Добавлено искусственное событие '-1000'.\nПри необходимости отредактируйте входную таблицу\n`)
                 events[-1000] = starts.map(startPoint => { return [-1000, startPoint, 0] })
+                starts = [-1000]
             }
             if (ends.length !== 1) {
                 logupdate.push(`Не одно конечное событие. Добавлено искусственное событие '1000'.\nПри необходимости отредактируйте входную таблицу\n`)
                 ends.forEach(end => { events[end] = [[end, 1000, 0]] })
+                ends = [1000]
             }
 
             // Делаем dfs для поиска полных путей
@@ -75,7 +77,7 @@ const Lab2 = () => {
                     currentEvent.forEach((work) => {
                         // Предотвращение циклов
                         if (_.indexOf(path, work[1]) !== -1) {
-                            logupdate.push(`Найден цикл ${JSON.stringify(path)} -> ${work[1]}. Пропускаем вершину. Убедитесь в правильности работы ${JSON.stringify(work)}\n`)
+                            logupdate.push(`Найден цикл ${JSON.stringify(path)} -> ${work[1]}. Необходимо отредактироавть работу ${JSON.stringify(work)}\n`)
                             let alreadymentioned = _.find(worksToDelete, {targetEvent: path.slice(-1)[0], work: work})
 
                             if (!alreadymentioned) {
@@ -102,16 +104,33 @@ const Lab2 = () => {
             setFullPaths(paths.map((path, index) => {
                 return <p style={{margin:"5px"}}>{JSON.stringify(path).replaceAll(",", "->").replace("[", `${index + 1})`).replace("]", "")}</p>
             }))
+        
+            let eventsOrder = JSON.parse(JSON.stringify(starts))
+            let orderedRows = []
+            let processedEvents = []
+            
+            while (events[eventsOrder[0]]) {
+                let nextEvents = []
+                eventsOrder.forEach(currEvent => {
+                    (events[currEvent] || []).forEach(work => {
+                        orderedRows.push(work)
+                        if (_.indexOf(processedEvents, work[1]) === -1 && _.indexOf(nextEvents, work[1]) === -1) {
+                            nextEvents.push(work[1])
+                        }
+                    })
+                })
+                eventsOrder = nextEvents
+                processedEvents = [...processedEvents, ...eventsOrder]
+            }
+
+            setSortedTableRows(orderedRows.map((row) => {
+                return(<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>)
+            }))
+
+            
+            // Выводим лог
             setLog(logupdate.map((msg, index) => {
                 return <p>{index + 1}: {msg}</p>
-            }))
-            let sortedArray = []
-            
-            let eventsOrder = JSON.parse(JSON.stringify(starts))
-            
-
-            setSortedTableRows(_.sortBy(givenData, (elem) => {return elem}).map((row) => {
-                return(<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>)
             }))
         }
     }, [givenData])
