@@ -10,7 +10,6 @@ function App() {
 
 
   const [labContent, setLabContent] = useState(<p>Выберете лабораторную работу из списка</p>)
-  
   return (
     <div className="App">
       <header className="App-header">

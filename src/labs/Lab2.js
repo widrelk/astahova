@@ -2,9 +2,9 @@ import React, {useEffect, useState, useRef} from "react"
 var _ = require("lodash")
 
 const Lab2 = () => {
-    const [givenTableRows, setGivenTableRows] = useState(null)
+    const [minimizedTableRows, setminimizedTableRows] = useState(null)
     const [givenData, setGivenData] = useState(null)
-    const [sortedTableRows, setSortedTableRows] = useState(null)
+    const [analysisResults, setAnalysisResults] = useState([])
     
     const [myLog, setLog] = useState([])
     const [fullPaths, setFullPaths] = useState([])
@@ -21,19 +21,37 @@ const Lab2 = () => {
         })
     }, []);
 
+    const deleteRow = (rowIndex) => {
+        let medium = JSON.parse(JSON.stringify(givenData))
+        medium.splice(rowIndex, 1)
+        setGivenData(medium)
+        setminimizedTableRows(givenData.map((row) => {
+            return(<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>)
+        }))
+    }
+
     useEffect(() => {
+        setAnalysisResults([])          // Ре-инициализируем state каждый рендер, чтобы не дублировались сообщения
         let logupdate = []
         if (givenData) {
-            setGivenTableRows(givenData.map((row) => {
+            // Выводим "дано"
+            setminimizedTableRows(givenData.map((row) => {
                 return(<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>)
             }))
         
+            //          НАЧИНАЕМ АНАЛИЗ ТАБЛИЦЫ
             let from = [], to = [], events = []     // events - события с исходящими работами
-            givenData.forEach((row) => {
-                // Сразу удаляем "петельные" работы
+            let needToBreak = false
+            givenData.every((row, rowIndex) => {
+                // Удаляем "петельные" работы
                 if (row[0] === row[1]) {
-                    logupdate.push(`Ошибка! Дуга ${row[0]}-${row[1]} удалена\n`)
-                    return
+                    setAnalysisResults(
+                    <div style={{border:"1px solid black", lineHeight:"10px", marginBottom:"10px"}}>
+                        <p>Обнаружена прямая петля {`${row[0]}-${row[1]} ${row[2]}`}.</p>
+                        <button onClick={() => deleteRow(rowIndex)}>Удалить петлю</button>
+                    </div>)
+                    needToBreak = true
+                    return false
                 }
                 // Если исходной вершины ещё не было, инициализируем контейнер и сохраняем исходную точку
                 if (_.indexOf(from,row[0]) === -1) {
@@ -41,8 +59,23 @@ const Lab2 = () => {
                     events[row[0]] = []
                 }
                 // Ищем повторы дуг
-                if (_.findIndex(events[row[0]], elem => { return elem[1] === row[1]}) !== -1) {
-                    logupdate.push(`Повтор дуги ${JSON.stringify(row)}. Выберете необходимую работу и отредактируйте таблицу`)
+                let repeatIndex = _.findIndex(events[row[0]], elem => { return elem[1] === row[1]})
+                if (repeatIndex !== -1) {
+                    let indexInData = _.findIndex(givenData, (iterRow) => {
+                        return (iterRow[0] == row[0]) && (iterRow[1] == row[1])
+                    })
+                    
+                    setAnalysisResults(
+                    <div style={{border:"1px solid black", lineHeight:"10px", marginBottom:"10px"}}>
+                        <p>Работа {row[0]}-{row[1]} дублируется.</p>
+                        <p>Вес 1: {events[row[0]][repeatIndex][2]}, вес 2: {row[2]}</p>
+                        <span>
+                            <button onClick={() => deleteRow(indexInData)}>Удалить вес 1</button>
+                            <button onClick={() => deleteRow(rowIndex)}>Удалить вес 2</button>
+                        </span>
+                    </div>)
+                    needToBreak = true
+                    return false
                 }
 
                 events[row[0]].push(row)
@@ -51,32 +84,82 @@ const Lab2 = () => {
                 if (_.indexOf(to, row[1]) === -1){
                     to.push(row[1])
                 }
+                return true
             })
-
+            if (needToBreak) {
+                return
+            }
             // Находим начальные и конечные точки
             let starts = _.difference(from, to)
             let ends = _.difference(to, from)
-            if (starts.length !== 1) {
-                logupdate.push(`Не одно начальное событие. Добавлено искусственное событие '-1000'.\nПри необходимости отредактируйте входную таблицу\n`)
-                events[-1000] = starts.map(startPoint => { return [-1000, startPoint, 0] })
-                starts = [-1000]
+
+            // по сути хуки
+            const deleteEvent = (eventIndex) => {
+                let medium = JSON.parse(JSON.stringify(givenData))
+                setGivenData(_.filter(medium, (elem) => {return elem[0] != eventIndex}))
             }
+            
+            // Если не одно начало
+            if (starts.length !== 1) {
+                let worksToDelete = starts.map((work) => {
+                    return <button onClick={() => deleteEvent(work)}>Удалить событие {work}</button>
+                })
+                const addFictionalStart = (eventIndex, departures) => {
+                    let medium = JSON.parse(JSON.stringify(givenData))
+                    medium = [...departures.map((dep) => {return [eventIndex, dep, 0]}), ...medium]
+                    setGivenData(medium)
+                }
+                setAnalysisResults(
+                    <div style={{border:"1px solid black", lineHeight:"10px", marginBottom:"10px"}}>
+                        <p>Не одно начальное событие!</p>
+                        <button onClick={() => addFictionalStart(-1000, starts)}>Добавить фиктивное событие "-1000"</button>
+                        {worksToDelete}
+                    </div>
+                )
+                return
+            }
+            // Если не один конец
             if (ends.length !== 1) {
-                logupdate.push(`Не одно конечное событие. Добавлено искусственное событие '1000'.\nПри необходимости отредактируйте входную таблицу\n`)
-                ends.forEach(end => { events[end] = [[end, 1000, 0]] })
-                ends = [1000]
+                let worksToDelete = ends.map((work) => {
+                    return <button onClick={() => deleteEvent(work)}>Удалить событие {work}</button>
+                })
+                const addFictionalEnd = (eventIndex, destinations) => {
+                    let medium = JSON.parse(JSON.stringify(givenData))
+                    medium = [...medium, ...destinations.map((dest) => {return [dest, eventIndex, 0]})]
+                    setGivenData(medium)
+                }
+                setAnalysisResults(
+                    <div style={{border:"1px solid black", lineHeight:"10px", marginBottom:"10px"}}>
+                        <p>Не одно конечное событие!</p>
+                        <button onClick={() => addFictionalEnd(1000, ends)}>Добавить фиктивное событие "1000"</button>
+                        {worksToDelete}
+                    </div>
+                )
+                return
             }
 
             // Делаем dfs для поиска полных путей
             let paths = []
             let worksToDelete = []
-            starts.forEach((start) => {
+
+            starts.every((start) => {
                 let path = [start]
+                needToBreak = false                     // флаг с сигналом о том, что нужно прекратить дальнейшие поиски
                 const search = (path, paths) => {
                     let currentEvent = events[path.slice(-1)]
-                    currentEvent.forEach((work) => {
+                    currentEvent.every((work) => {
                         // Предотвращение циклов
                         if (_.indexOf(path, work[1]) !== -1) {
+                            setAnalysisResults(
+                                <div style={{border:"1px solid black", lineHeight:"10px", marginBottom:"10px"}}>
+                                    <p>{`Обнаружен цикл ${JSON.stringify(path).replaceAll(",","=>")} ==> ${work[1]}!`}</p>
+                                    <button onClick={() => deleteRow(_.findIndex(givenData, (row) => {return _.isEqual(row, work)}))}>
+                                        {`Удалить работу ${JSON.stringify(work)}`}
+                                    </button>
+                                </div>
+                            )
+                            needToBreak = true
+                            return false
                             logupdate.push(`Найден цикл ${JSON.stringify(path)} -> ${work[1]}. Необходимо отредактироавть работу ${JSON.stringify(work)}\n`)
                             let alreadymentioned = _.find(worksToDelete, {targetEvent: path.slice(-1)[0], work: work})
 
@@ -95,12 +178,20 @@ const Lab2 = () => {
                             search(path, paths)
                         }
                         path.pop()
+                        return true
                     })
                 }
+
                 let currPaths = []
                 search(path, currPaths)
                 paths = paths.concat(currPaths)
+                return true
             })
+            
+            if (needToBreak) {
+                return
+            }
+
             setFullPaths(paths.map((path, index) => {
                 return <p style={{margin:"5px"}}>{JSON.stringify(path).replaceAll(",", "->").replace("[", `${index + 1})`).replace("]", "")}</p>
             }))
@@ -122,16 +213,20 @@ const Lab2 = () => {
                 eventsOrder = nextEvents
                 processedEvents = [...processedEvents, ...eventsOrder]
             }
-
-            setSortedTableRows(orderedRows.map((row) => {
-                return(<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>)
-            }))
-
-            
-            // Выводим лог
-            setLog(logupdate.map((msg, index) => {
-                return <p>{index + 1}: {msg}</p>
-            }))
+            // Выставляем результат упорядочивания
+            setAnalysisResults(
+                <div>
+                    <p>Частично упорядоченный список работ</p>
+                    <table>
+                        <tr>
+                            <td>A</td><td>B</td><td>T<sub>AB</sub></td>
+                        </tr>
+                        {orderedRows.map((row) => {
+                            return(<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>)
+                        })}
+                    </table>
+                </div>
+            )
         }
     }, [givenData])
 
@@ -142,44 +237,24 @@ const Lab2 = () => {
 
         <div style={{display: "flex", maxWidth:"1200px"}}>
             <div style={{flex: 1}}>
-                <h4>Исходный список работ</h4>
+                <h4>Упорядоченный список работ</h4>
                 <table>
                     <tr>
                         <td><b>A</b>: шифр предшествующего события</td>
                         <td><b>B</b>: шифр последующего события</td>
                         <td><b>T<sub>AB</sub></b>: продолжительность соответствующей работы, связывающей события с шифрами А и В (дни)</td>
                     </tr>
-                    {/* <tr>
-                        <td colSpan="3" height="40px">
-                            <form >
-                                <input type="text" name="first" placeholder="A"/>
-                                <input type="text" name="second" placeholder="B"/>
-                                <input type="text" name="time" placeholder="T"/>
-                                <input type="submit" value="Добавить в таблицу" />
-                            </form>
-                        </td>   
-                    </tr> */}
-                    {givenTableRows}
+                    {minimizedTableRows}
                 </table>
             </div>
             <div style={{flex: 1, paddingLeft:"30px"}}>
-                <h4>Упорядоченный список работ</h4>
-                <table>
-                    <tr>
-                        <td><b>A</b></td>
-                        <td><b>B</b></td>
-                        <td><b>T<sub>AB</sub></b></td>
-                    </tr>
-                    {sortedTableRows}
-                </table>
+                <h4>Упорядочение работ</h4>
+                {analysisResults}
             </div>
         </div>
         <div style={{display:"flex"}}>
             <div style={{flex:"1", textAlign:"left", lineHeight:"15px"}}>
-                <p>Лог операций:</p>
-                <div style={{overflow:"scroll", height:"300px", overflowX:"hidden", overflowY:"auto"}}>
-                    {myLog}
-                </div>
+                
             </div>
             <div style={{flex:"1", textAlign:"left", lineHeight:"15px"}}>
                 <p>Список полных путей (всего - {fullPaths.length}):</p>
