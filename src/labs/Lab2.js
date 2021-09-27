@@ -1,7 +1,7 @@
 import React, {useEffect, useState, useRef} from "react"
 var _ = require("lodash")
 
-const Lab2 = () => {
+const Lab2 = (args) => {
     const [minimizedTableRows, setminimizedTableRows] = useState(null)
     const [givenData, setGivenData] = useState(null)
     const [analysisResults, setAnalysisResults] = useState([])
@@ -227,6 +227,14 @@ const Lab2 = () => {
                     </table>
                 </div>
             )
+            
+            args.setResult({
+                "orderedInput": orderedRows,
+                "fullPaths": paths,
+                "events": events,
+                "beginsAt": starts[0],
+                "endsAt": ends[0]
+            })
         }
     }, [givenData])
 
